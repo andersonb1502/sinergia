@@ -2,24 +2,77 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sinergia</title>
-<link rel="manifest" href="manifest.json">
+
 <meta name="theme-color" content="#b91c1c">
+<meta name="description" content="Plataforma interna sindical">
+
+<link rel="manifest" href="./manifest.json">
+
 <style>
-body{font-family:Arial,sans-serif;margin:0;background:#f3f4f6;color:#111}
-header{background:#b91c1c;color:#fff;padding:20px;text-align:center}
-.card{background:#fff;margin:12px;padding:16px;border-radius:14px}
-button{background:#b91c1c;color:#fff;border:0;padding:10px 14px;border-radius:10px}
+body{
+  font-family: Arial, sans-serif;
+  margin:0;
+  background:#f3f4f6;
+  color:#111;
+}
+
+header{
+  background:#b91c1c;
+  color:#fff;
+  padding:20px;
+  text-align:center;
+}
+
+.card{
+  background:#fff;
+  margin:12px;
+  padding:16px;
+  border-radius:14px;
+  box-shadow:0 2px 6px rgba(0,0,0,.08);
+}
+
+button{
+  background:#b91c1c;
+  color:#fff;
+  border:0;
+  padding:10px 14px;
+  border-radius:10px;
+  cursor:pointer;
+}
 </style>
 </head>
+
 <body>
-<header><h1>✊ Sinergia</h1><p>Plataforma interna sindical</p></header>
-<div class="card"><h2>Eventos</h2><p>Assembleia Geral - 12/05 às 19h</p></div>
-<div class="card"><h2>Cursos</h2><p>Direitos Trabalhistas - Online - Gratuito</p></div>
-<div class="card"><h2>Área do Membro</h2><button>Entrar</button></div>
+
+<header>
+  <h1>✊ Sinergia</h1>
+  <p>Plataforma interna sindical</p>
+</header>
+
+<div class="card">
+  <h2>Eventos</h2>
+  <p>Assembleia Geral - 12/05 às 19h</p>
+</div>
+
+<div class="card">
+  <h2>Cursos</h2>
+  <p>Direitos Trabalhistas - Online - Gratuito</p>
+</div>
+
+<div class="card">
+  <h2>Área do Membro</h2>
+  <button>Entrar</button>
+</div>
+
 <script>
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js')}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(() => console.log('Service Worker ativo'))
+    .catch(err => console.log('Erro SW:', err));
+}
 </script>
+
 </body>
-</html> 
+</html>
