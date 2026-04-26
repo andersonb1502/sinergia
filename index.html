@@ -133,7 +133,7 @@ input.senha{max-width:200px;margin:10px auto}
 <script>
 // Configuração do Google Sheets
 const SPREADSHEET_ID = '1dYIDJhbJMNLDum8xPksNnrdx1Ft7h-sGZVANvPhczkU';
-const API_KEY = ''; // Google Sheets API não precisa de chave para leitura pública
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxHoDg9bnmMNXO9jKnTplr_hx3HGoGoDat0f2MrK8CExVVolSyZw0PGqG9fiQNPGv0/exec';
 
 // Variáveis globais
 let eventos = [];
@@ -144,162 +144,94 @@ let editandoId = null;
 let membroLogado = false;
 let adminLogado = false;
 
-// Função para ler dados do Google Sheets
-async function lerPlanilha(nomeAba) {
-    try {
-        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${nomeAba}`;
-        const response = await fetch(url);
-        const text = await response.text();
-        const jsonText = text.substring(47, text.length - 2);
-        const data = JSON.parse(jsonText);
-        
-        const rows = data.table.rows;
-        if (!rows || rows.length === 0) return [];
-        
-        // Pular cabeçalho (primeira linha)
-        const result = [];
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const item = {};
-            for (let j = 0; j < row.c.length; j++) {
-                const cell = row.c[j];
-                if (cell && cell.v !== null && cell.v !== undefined) {
-                    if (j === 0) item.id = Number(cell.v);
-                    else if (j === 1) item.nome = String(cell.v);
-                    else if (j === 2 && nomeAba === 'eventos') item.data = String(cell.v);
-                    else if (j === 2 && nomeAba === 'cursos') item.carga = String(cell.v);
-                    else if (j === 2 && nomeAba === 'documentos') item.titulo = String(cell.v);
-                    else if (j === 3 && nomeAba === 'eventos') item.local = String(cell.v);
-                    else if (j === 3 && nomeAba === 'cursos') item.desc = String(cell.v);
-                    else if (j === 3 && nomeAba === 'documentos') item.conteudo = String(cell.v);
-                    else if (j === 4 && nomeAba === 'eventos') item.desc = String(cell.v);
-                }
-            }
-            if (item.id) result.push(item);
-        }
-        return result;
-    } catch (error) {
-        console.error(`Erro ao ler ${nomeAba}:`, error);
-        return [];
-    }
-}
-
-// Função para escrever no Google Sheets (usando FormSubmit)
+// Função para escrever no Google Sheets via Apps Script
 async function escreverPlanilha(dados, aba) {
-    // Como o Google Sheets não permite escrita direta via API sem autenticação,
-    // vamos usar um webhook do Google Apps Script
-    const scriptURL = `https://script.google.com/macros/s/AKfycbxHoDg9bnmMNXO9jKnTplr_hx3HGoGoDat0f2MrK8CExVVolSyZw0PGqG9fiQNPGv0/exec`; // Você precisa criar este script
-    
     try {
-        const response = await fetch(scriptURL, {
+        const response = await fetch(SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors',
-            headers: {'Content-Type': 'application/json'},
+            mode: 'cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify({aba: aba, dados: dados})
         });
-        return true;
+        
+        const resultado = await response.json();
+        return resultado.success;
     } catch (error) {
         console.error('Erro ao escrever:', error);
         return false;
     }
 }
 
+// Função para ler dados do Google Sheets via Apps Script
+async function lerPlanilha(aba) {
+    try {
+        const url = `${SCRIPT_URL}?aba=${aba}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data && !data.error) {
+            return data;
+        }
+        return [];
+    } catch (error) {
+        console.error(`Erro ao ler ${aba}:`, error);
+        return [];
+    }
+}
+
 // Carregar todos os dados
 async function carregarDados() {
-    eventos = await lerPlanilha('eventos');
-    cursos = await lerPlanilha('cursos');
-    documentos = await lerPlanilha('documentos');
-    
-    // Dados padrão se estiver vazio
-    if (eventos.length === 0) {
-        eventos = [
-            {id:1, nome:"Assembleia Geral", data:"2026-05-12", local:"Sede do Sindicato", desc:"Discussão sobre dissídio coletivo"},
-            {id:2, nome:"Confraternização", data:"2026-06-20", local:"Clube de campo", desc:"Evento social para membros"}
-        ];
+    try {
+        eventos = await lerPlanilha('eventos');
+        cursos = await lerPlanilha('cursos');
+        documentos = await lerPlanilha('documentos');
+        
+        // Dados padrão se estiver vazio
+        if (!eventos || eventos.length === 0) {
+            eventos = [
+                {id:1, nome:"Assembleia Geral", data:"2026-05-12", local:"Sede do Sindicato", desc:"Discussão sobre dissídio coletivo"},
+                {id:2, nome:"Confraternização", data:"2026-06-20", local:"Clube de campo", desc:"Evento social para membros"}
+            ];
+            await escreverPlanilha(eventos, 'eventos');
+        }
+        
+        if (!cursos || cursos.length === 0) {
+            cursos = [
+                {id:1, nome:"Direitos Trabalhistas", carga:"8h", desc:"Aprenda seus direitos básicos"},
+                {id:2, nome:"Segurança no Trabalho", carga:"4h", desc:"Prevenção de acidentes"}
+            ];
+            await escreverPlanilha(cursos, 'cursos');
+        }
+        
+        if (!documentos || documentos.length === 0) {
+            documentos = [
+                {id:1, titulo:"Estatuto do Sindicato", conteudo:"Este é o estatuto oficial do sindicato..."},
+                {id:2, titulo:"Convenção Coletiva 2026", conteudo:"Acordo firmado entre sindicato e empresas..."}
+            ];
+            await escreverPlanilha(documentos, 'documentos');
+        }
+        
+        atualizarTudo();
+        iniciarSincronizacaoAutomatica();
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
     }
-    
-    if (cursos.length === 0) {
-        cursos = [
-            {id:1, nome:"Direitos Trabalhistas", carga:"8h", desc:"Aprenda seus direitos básicos"},
-            {id:2, nome:"Segurança no Trabalho", carga:"4h", desc:"Prevenção de acidentes"}
-        ];
-    }
-    
-    if (documentos.length === 0) {
-        documentos = [
-            {id:1, titulo:"Estatuto do Sindicato", conteudo:"Este é o estatuto oficial do sindicato..."},
-            {id:2, titulo:"Convenção Coletiva 2026", conteudo:"Acordo firmado entre sindicato e empresas..."}
-        ];
-    }
-    
-    atualizarTudo();
 }
 
-function atualizarEventos() {
-    const container = document.getElementById('lista-eventos');
-    if(eventos.length === 0) {
-        container.innerHTML = '<p style="color:#666">Nenhum evento cadastrado</p>';
-        return;
-    }
-    
-    container.innerHTML = eventos.map(evento => `
-        <div class="item-lista">
-            <strong>${evento.nome}</strong><br>
-            📅 ${formatarData(evento.data)} | 📍 ${evento.local || 'Local não informado'}<br>
-            <small>${evento.desc || ''}</small>
-            ${adminLogado ? `
-                <div style="margin-top:8px">
-                    <button class="btn-pequeno btn-editar" onclick="editarItem('evento', ${evento.id})">✏️ Editar</button>
-                    <button class="btn-pequeno btn-excluir" onclick="excluirItem('evento', ${evento.id})">🗑️ Excluir</button>
-                </div>
-            ` : ''}
-        </div>
-    `).join('');
+// Sincronizar automaticamente a cada 30 segundos
+function iniciarSincronizacaoAutomatica() {
+    setInterval(async () => {
+        eventos = await lerPlanilha('eventos');
+        cursos = await lerPlanilha('cursos');
+        documentos = await lerPlanilha('documentos');
+        atualizarTudo();
+        console.log('✅ Dados sincronizados automaticamente');
+    }, 30000);
 }
 
-function atualizarCursos() {
-    const container = document.getElementById('lista-cursos');
-    if(cursos.length === 0) {
-        container.innerHTML = '<p style="color:#666">Nenhum curso cadastrado</p>';
-        return;
-    }
-    
-    container.innerHTML = cursos.map(curso => `
-        <div class="item-lista">
-            <strong>${curso.nome}</strong><br>
-            ⏱️ ${curso.carga || 'Carga não informada'} | ${curso.desc || ''}
-            ${adminLogado ? `
-                <div style="margin-top:8px">
-                    <button class="btn-pequeno btn-editar" onclick="editarItem('curso', ${curso.id})">✏️ Editar</button>
-                    <button class="btn-pequeno btn-excluir" onclick="excluirItem('curso', ${curso.id})">🗑️ Excluir</button>
-                </div>
-            ` : ''}
-        </div>
-    `).join('');
-}
-
-function atualizarDocumentos() {
-    const container = document.getElementById('lista-documentos');
-    if(documentos.length === 0) {
-        container.innerHTML = '<p style="color:#666">Nenhum documento disponível</p>';
-        return;
-    }
-    
-    container.innerHTML = documentos.map(doc => `
-        <div class="item-lista">
-            <strong>📄 ${doc.titulo}</strong><br>
-            <small>${(doc.conteudo || '').substring(0,100)}${doc.conteudo && doc.conteudo.length > 100 ? '...' : ''}</small>
-            <button class="btn-pequeno" onclick="verDocumento(${doc.id})" style="background:#2563eb;margin-top:8px">Ler completo</button>
-        </div>
-    `).join('');
-}
-
-function verDocumento(id) {
-    const doc = documentos.find(d => d.id === id);
-    alert(`${doc.titulo}\n\n${doc.conteudo}`);
-}
-
-function cadastrarEvento() {
+async function cadastrarEvento() {
     const nome = document.getElementById('novoEventoNome').value;
     const data = document.getElementById('novoEventoData').value;
     const local = document.getElementById('novoEventoLocal').value;
@@ -314,21 +246,21 @@ function cadastrarEvento() {
     const novoEvento = {id:novoId, nome, data, local:local || 'Não informado', desc:desc || ''};
     eventos.push(novoEvento);
     
-    // Salvar no localStorage como backup
-    localStorage.setItem('sinergia_eventos_backup', JSON.stringify(eventos));
+    const salvo = await escreverPlanilha(eventos, 'eventos');
     
-    atualizarEventos();
-    
-    // Limpar campos
-    document.getElementById('novoEventoNome').value = '';
-    document.getElementById('novoEventoData').value = '';
-    document.getElementById('novoEventoLocal').value = '';
-    document.getElementById('novoEventoDesc').value = '';
-    
-    alert('Evento cadastrado localmente! Para salvar na planilha, o admin precisa usar a opção de sincronizar.');
+    if(salvo) {
+        atualizarEventos();
+        document.getElementById('novoEventoNome').value = '';
+        document.getElementById('novoEventoData').value = '';
+        document.getElementById('novoEventoLocal').value = '';
+        document.getElementById('novoEventoDesc').value = '';
+        alert('✅ Evento cadastrado e sincronizado para todos!');
+    } else {
+        alert('❌ Erro ao sincronizar. Verifique sua internet.');
+    }
 }
 
-function cadastrarCurso() {
+async function cadastrarCurso() {
     const nome = document.getElementById('novoCursoNome').value;
     const carga = document.getElementById('novoCursoCarga').value;
     const desc = document.getElementById('novoCursoDesc').value;
@@ -342,17 +274,20 @@ function cadastrarCurso() {
     const novoCurso = {id:novoId, nome, carga:carga || 'Não informada', desc:desc || ''};
     cursos.push(novoCurso);
     
-    localStorage.setItem('sinergia_cursos_backup', JSON.stringify(cursos));
-    atualizarCursos();
+    const salvo = await escreverPlanilha(cursos, 'cursos');
     
-    document.getElementById('novoCursoNome').value = '';
-    document.getElementById('novoCursoCarga').value = '';
-    document.getElementById('novoCursoDesc').value = '';
-    
-    alert('Curso cadastrado localmente!');
+    if(salvo) {
+        atualizarCursos();
+        document.getElementById('novoCursoNome').value = '';
+        document.getElementById('novoCursoCarga').value = '';
+        document.getElementById('novoCursoDesc').value = '';
+        alert('✅ Curso cadastrado e sincronizado para todos!');
+    } else {
+        alert('❌ Erro ao sincronizar.');
+    }
 }
 
-function adicionarDocumento() {
+async function adicionarDocumento() {
     const titulo = document.getElementById('novoDocTitulo').value;
     const conteudo = document.getElementById('novoDocConteudo').value;
     
@@ -365,16 +300,19 @@ function adicionarDocumento() {
     const novoDoc = {id:novoId, titulo, conteudo};
     documentos.push(novoDoc);
     
-    localStorage.setItem('sinergia_documentos_backup', JSON.stringify(documentos));
-    atualizarDocumentos();
+    const salvo = await escreverPlanilha(documentos, 'documentos');
     
-    document.getElementById('novoDocTitulo').value = '';
-    document.getElementById('novoDocConteudo').value = '';
-    
-    alert('Documento adicionado!');
+    if(salvo) {
+        atualizarDocumentos();
+        document.getElementById('novoDocTitulo').value = '';
+        document.getElementById('novoDocConteudo').value = '';
+        alert('✅ Documento adicionado e sincronizado para todos!');
+    } else {
+        alert('❌ Erro ao sincronizar.');
+    }
 }
 
-function editarItem(tipo, id) {
+async function editarItem(tipo, id) {
     editandoTipo = tipo;
     editandoId = id;
     
@@ -398,7 +336,7 @@ function editarItem(tipo, id) {
     }
 }
 
-function salvarEdicao() {
+async function salvarEdicao() {
     const novoNome = document.getElementById('editarNome').value;
     const info = document.getElementById('editarInfo').value;
     
@@ -411,7 +349,8 @@ function salvarEdicao() {
             if(local) evento.local = local;
             if(desc) evento.desc = desc;
         }
-        localStorage.setItem('sinergia_eventos_backup', JSON.stringify(eventos));
+        const salvo = await escreverPlanilha(eventos, 'eventos');
+        if(salvo) alert('✅ Evento atualizado!');
     } else if(editandoTipo === 'curso') {
         const [carga, desc] = info.split('|');
         const curso = cursos.find(c => c.id === editandoId);
@@ -420,29 +359,93 @@ function salvarEdicao() {
             if(carga) curso.carga = carga;
             if(desc) curso.desc = desc;
         }
-        localStorage.setItem('sinergia_cursos_backup', JSON.stringify(cursos));
+        const salvo = await escreverPlanilha(cursos, 'cursos');
+        if(salvo) alert('✅ Curso atualizado!');
     }
     
     atualizarEventos();
     atualizarCursos();
     fecharModal();
-    alert('Salvo com sucesso!');
 }
 
-function excluirItem(tipo, id) {
+async function excluirItem(tipo, id) {
     if(confirm('Tem certeza que quer excluir?')) {
         if(tipo === 'evento') {
             eventos = eventos.filter(e => e.id !== id);
-            localStorage.setItem('sinergia_eventos_backup', JSON.stringify(eventos));
+            await escreverPlanilha(eventos, 'eventos');
         } else if(tipo === 'curso') {
             cursos = cursos.filter(c => c.id !== id);
-            localStorage.setItem('sinergia_cursos_backup', JSON.stringify(cursos));
+            await escreverPlanilha(cursos, 'cursos');
         }
         
         atualizarEventos();
         atualizarCursos();
-        alert('Excluído!');
+        alert('✅ Excluído e sincronizado!');
     }
+}
+
+function atualizarEventos() {
+    const container = document.getElementById('lista-eventos');
+    if(!eventos || eventos.length === 0) {
+        container.innerHTML = '<p style="color:#666">Nenhum evento cadastrado</p>';
+        return;
+    }
+    
+    container.innerHTML = eventos.map(evento => `
+        <div class="item-lista">
+            <strong>${evento.nome}</strong><br>
+            📅 ${formatarData(evento.data)} | 📍 ${evento.local || 'Local não informado'}<br>
+            <small>${evento.desc || ''}</small>
+            ${adminLogado ? `
+                <div style="margin-top:8px">
+                    <button class="btn-pequeno btn-editar" onclick="editarItem('evento', ${evento.id})">✏️ Editar</button>
+                    <button class="btn-pequeno btn-excluir" onclick="excluirItem('evento', ${evento.id})">🗑️ Excluir</button>
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+function atualizarCursos() {
+    const container = document.getElementById('lista-cursos');
+    if(!cursos || cursos.length === 0) {
+        container.innerHTML = '<p style="color:#666">Nenhum curso cadastrado</p>';
+        return;
+    }
+    
+    container.innerHTML = cursos.map(curso => `
+        <div class="item-lista">
+            <strong>${curso.nome}</strong><br>
+            ⏱️ ${curso.carga || 'Carga não informada'} | ${curso.desc || ''}
+            ${adminLogado ? `
+                <div style="margin-top:8px">
+                    <button class="btn-pequeno btn-editar" onclick="editarItem('curso', ${curso.id})">✏️ Editar</button>
+                    <button class="btn-pequeno btn-excluir" onclick="excluirItem('curso', ${curso.id})">🗑️ Excluir</button>
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+function atualizarDocumentos() {
+    const container = document.getElementById('lista-documentos');
+    if(!documentos || documentos.length === 0) {
+        container.innerHTML = '<p style="color:#666">Nenhum documento disponível</p>';
+        return;
+    }
+    
+    container.innerHTML = documentos.map(doc => `
+        <div class="item-lista">
+            <strong>📄 ${doc.titulo}</strong><br>
+            <small>${(doc.conteudo || '').substring(0,100)}${doc.conteudo && doc.conteudo.length > 100 ? '...' : ''}</small>
+            <button class="btn-pequeno" onclick="verDocumento(${doc.id})" style="background:#2563eb;margin-top:8px">Ler completo</button>
+        </div>
+    `).join('');
+}
+
+function verDocumento(id) {
+    const doc = documentos.find(d => d.id === id);
+    alert(`${doc.titulo}\n\n${doc.conteudo}`);
 }
 
 function verificarSenhaMembro() {
@@ -470,22 +473,11 @@ function verificarSenhaAdmin() {
         adminLogado = true;
         document.querySelector('#tab-admin .senha-area').style.display = 'none';
         document.getElementById('conteudo-admin').style.display = 'block';
-        carregarBackupsLocal();
         atualizarEventos();
         atualizarCursos();
     } else {
         alert('Senha incorreta!');
     }
-}
-
-function carregarBackupsLocal() {
-    const eventosBackup = localStorage.getItem('sinergia_eventos_backup');
-    const cursosBackup = localStorage.getItem('sinergia_cursos_backup');
-    const docsBackup = localStorage.getItem('sinergia_documentos_backup');
-    
-    if(eventosBackup) eventos = JSON.parse(eventosBackup);
-    if(cursosBackup) cursos = JSON.parse(cursosBackup);
-    if(docsBackup) documentos = JSON.parse(docsBackup);
 }
 
 function exportarDados() {
