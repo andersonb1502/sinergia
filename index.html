@@ -46,7 +46,6 @@ input.senha{max-width:200px;margin:10px auto}
     <button class="tab" onclick="mostrarTab('admin')">⚙️ Admin</button>
 </div>
 
-<!-- Tab Eventos -->
 <div id="tab-eventos" class="conteudo-tab ativo">
     <div class="card">
         <h3>📅 Próximos Eventos</h3>
@@ -54,7 +53,6 @@ input.senha{max-width:200px;margin:10px auto}
     </div>
 </div>
 
-<!-- Tab Cursos -->
 <div id="tab-cursos" class="conteudo-tab">
     <div class="card">
         <h3>📚 Cursos Disponíveis</h3>
@@ -62,7 +60,6 @@ input.senha{max-width:200px;margin:10px auto}
     </div>
 </div>
 
-<!-- Tab Membro -->
 <div id="tab-membro" class="conteudo-tab">
     <div class="card" id="area-membro">
         <div class="senha-area">
@@ -74,12 +71,11 @@ input.senha{max-width:200px;margin:10px auto}
         <div id="conteudo-membro" style="display:none">
             <h3>📄 Documentos e Comunicados</h3>
             <div id="lista-documentos"></div>
-            <button onclick="logoutMembro()" style="margin-top:15px">Sair</button>
+            <button onclick="logoutMembro()">Sair</button>
         </div>
     </div>
 </div>
 
-<!-- Tab Admin -->
 <div id="tab-admin" class="conteudo-tab">
     <div class="card">
         <div class="senha-area">
@@ -109,21 +105,16 @@ input.senha{max-width:200px;margin:10px auto}
             
             <h3>📄 Documentos para membros</h3>
             <input type="text" id="novoDocTitulo" placeholder="Título do documento">
-            <textarea id="novoDocConteudo" placeholder="Conteúdo do documento" rows="4"></textarea>
+            <textarea id="novoDocConteudo" placeholder="Conteúdo do documento"></textarea>
             <button onclick="adicionarDocumento()">Adicionar Documento</button>
             
             <hr style="margin:20px 0">
             
-            <div style="display:flex; gap:10px; flex-wrap:wrap">
-                <button onclick="exportarDados()" style="background:#2563eb">📥 Fazer backup local</button>
-                <button onclick="importarDados()" style="background:#059669">📤 Importar dados (receber backup)</button>
-            </div>
-            <p style="font-size:12px;color:#666;margin-top:10px">⚠️ Use o backup para compartilhar dados com os 40 membros</p>
+            <button onclick="exportarDados()">📥 Fazer backup local</button>
         </div>
     </div>
 </div>
 
-<!-- Modal para edição -->
 <div id="modal" class="modal">
     <div class="modal-content">
         <span class="fechar" onclick="fecharModal()">&times;</span>
@@ -135,85 +126,205 @@ input.senha{max-width:200px;margin:10px auto}
 </div>
 
 <script>
-// ============================================
-// SINERGIA - VERSÃO COMPLETA COM BACKUP
-// Sistema funcionando 100% localmente
-// Compatível com qualquer navegador
-// ============================================
+// Configuração do Google Sheets
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxuFjMx3tFKZC8_HWPcYNyB0IDYew57tb55APz0nDujY8vX5TsQNBx7PqKKnjLHdgs/exec';
 
 let eventos = [];
 let cursos = [];
 let documentos = [];
-let adminLogado = false;
-let membroLogado = false;
 let editandoTipo = null;
 let editandoId = null;
+let membroLogado = false;
+let adminLogado = false;
 
-// Carregar dados salvos localmente
-function carregarDados() {
+// Função para escrever no Google Sheets
+async function escreverPlanilha(dados, aba) {
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({aba: aba, dados: dados})
+        });
+        console.log(`✅ Dados enviados para ${aba}`);
+        return true;
+    } catch (error) {
+        console.error('Erro ao escrever:', error);
+        return false;
+    }
+}
+
+// Função para ler dados do Google Sheets
+async function lerPlanilha(aba) {
+    try {
+        const url = `${SCRIPT_URL}?aba=${aba}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(`Erro ao ler ${aba}:`, error);
+        return [];
+    }
+}
+
+// Carregar todos os dados
+async function carregarDados() {
+    try {
+        const eventosTemp = await lerPlanilha('eventos');
+        const cursosTemp = await lerPlanilha('cursos');
+        const documentosTemp = await lerPlanilha('documentos');
+        
+        if(eventosTemp && eventosTemp.length > 0) {
+            eventos = eventosTemp;
+        } else {
+            eventos = [
+                {id:1, nome:"Assembleia Geral", data:"2026-05-12", local:"Sede do Sindicato", desc:"Discussão sobre dissídio coletivo"},
+                {id:2, nome:"Confraternização", data:"2026-06-20", local:"Clube de campo", desc:"Evento social para membros"}
+            ];
+        }
+        
+        if(cursosTemp && cursosTemp.length > 0) {
+            cursos = cursosTemp;
+        } else {
+            cursos = [
+                {id:1, nome:"Direitos Trabalhistas", carga:"8h", desc:"Aprenda seus direitos básicos"},
+                {id:2, nome:"Segurança no Trabalho", carga:"4h", desc:"Prevenção de acidentes"}
+            ];
+        }
+        
+        if(documentosTemp && documentosTemp.length > 0) {
+            documentos = documentosTemp;
+        } else {
+            documentos = [
+                {id:1, titulo:"Estatuto do Sindicato", conteudo:"Este é o estatuto oficial do sindicato..."},
+                {id:2, titulo:"Convenção Coletiva 2026", conteudo:"Acordo firmado entre sindicato e empresas..."}
+            ];
+        }
+        
+        atualizarTudo();
+    } catch (error) {
+        console.error('Erro ao carregar:', error);
+        carregarDadosLocal();
+    }
+}
+
+function carregarDadosLocal() {
     const eventosSalvos = localStorage.getItem('sinergia_eventos');
     const cursosSalvos = localStorage.getItem('sinergia_cursos');
     const docsSalvos = localStorage.getItem('sinergia_documentos');
     
-    if(eventosSalvos && eventosSalvos !== 'undefined') {
-        eventos = JSON.parse(eventosSalvos);
-    } 
+    if(eventosSalvos) eventos = JSON.parse(eventosSalvos);
+    if(cursosSalvos) cursos = JSON.parse(cursosSalvos);
+    if(docsSalvos) documentos = JSON.parse(docsSalvos);
     
-    if(!eventosSalvos || eventos.length === 0) {
-        eventos = [
-            {id:1, nome:"Assembleia Geral", data:"2026-05-12", local:"Sede do Sindicato", desc:"Discussão sobre dissídio coletivo"},
-            {id:2, nome:"Confraternização", data:"2026-06-20", local:"Clube de campo", desc:"Evento social para membros"},
-            {id:3, nome:"Palestra Trabalhista", data:"2026-07-05", local:"Auditório", desc:"Com advogado especialista"}
-        ];
-    }
-    
-    if(cursosSalvos && cursosSalvos !== 'undefined') {
-        cursos = JSON.parse(cursosSalvos);
-    }
-    
-    if(!cursosSalvos || cursos.length === 0) {
-        cursos = [
-            {id:1, nome:"Direitos Trabalhistas", carga:"8h", desc:"Aprenda seus direitos básicos"},
-            {id:2, nome:"Segurança no Trabalho", carga:"4h", desc:"Prevenção de acidentes"},
-            {id:3, nome:"Negociação Coletiva", carga:"12h", desc:"Técnicas de negociação sindical"}
-        ];
-    }
-    
-    if(docsSalvos && docsSalvos !== 'undefined') {
-        documentos = JSON.parse(docsSalvos);
-    }
-    
-    if(!docsSalvos || documentos.length === 0) {
-        documentos = [
-            {id:1, titulo:"Estatuto do Sindicato", conteudo:"Este é o estatuto oficial do sindicato. Todas as regras e diretrizes estão aqui."},
-            {id:2, titulo:"Convenção Coletiva 2026", conteudo:"Acordo firmado entre sindicato e empresas. Reajuste salarial de 5% e benefícios."},
-            {id:3, titulo:"Calendário de Assembleias", conteudo:"Datas das próximas assembleias: 12/05, 20/06, 15/08"}
-        ];
-    }
-    
-    salvarTudo();
     atualizarTudo();
 }
 
-function salvarTudo() {
+function salvarLocal() {
     localStorage.setItem('sinergia_eventos', JSON.stringify(eventos));
     localStorage.setItem('sinergia_cursos', JSON.stringify(cursos));
     localStorage.setItem('sinergia_documentos', JSON.stringify(documentos));
-    console.log('✅ Dados salvos localmente');
+}
+
+async function cadastrarEvento() {
+    const nome = document.getElementById('novoEventoNome').value;
+    const data = document.getElementById('novoEventoData').value;
+    const local = document.getElementById('novoEventoLocal').value;
+    const desc = document.getElementById('novoEventoDesc').value;
+    
+    if(!nome || !data) {
+        alert('Preencha pelo menos nome e data!');
+        return;
+    }
+    
+    const novoId = eventos.length > 0 ? Math.max(...eventos.map(e => e.id)) + 1 : 1;
+    const novoEvento = {id:novoId, nome, data, local:local || 'Não informado', desc:desc || ''};
+    eventos.push(novoEvento);
+    
+    const salvo = await escreverPlanilha(eventos, 'eventos');
+    salvarLocal();
+    atualizarEventos();
+    
+    document.getElementById('novoEventoNome').value = '';
+    document.getElementById('novoEventoData').value = '';
+    document.getElementById('novoEventoLocal').value = '';
+    document.getElementById('novoEventoDesc').value = '';
+    
+    if(salvo) {
+        alert('✅ Evento sincronizado com a nuvem!');
+    } else {
+        alert('⚠️ Evento salvo localmente. Sincronização falhou.');
+    }
+}
+
+async function cadastrarCurso() {
+    const nome = document.getElementById('novoCursoNome').value;
+    const carga = document.getElementById('novoCursoCarga').value;
+    const desc = document.getElementById('novoCursoDesc').value;
+    
+    if(!nome) {
+        alert('Preencha o nome do curso!');
+        return;
+    }
+    
+    const novoId = cursos.length > 0 ? Math.max(...cursos.map(c => c.id)) + 1 : 1;
+    const novoCurso = {id:novoId, nome, carga:carga || 'Não informada', desc:desc || ''};
+    cursos.push(novoCurso);
+    
+    const salvo = await escreverPlanilha(cursos, 'cursos');
+    salvarLocal();
+    atualizarCursos();
+    
+    document.getElementById('novoCursoNome').value = '';
+    document.getElementById('novoCursoCarga').value = '';
+    document.getElementById('novoCursoDesc').value = '';
+    
+    if(salvo) {
+        alert('✅ Curso sincronizado com a nuvem!');
+    } else {
+        alert('⚠️ Curso salvo localmente. Sincronização falhou.');
+    }
+}
+
+async function adicionarDocumento() {
+    const titulo = document.getElementById('novoDocTitulo').value;
+    const conteudo = document.getElementById('novoDocConteudo').value;
+    
+    if(!titulo || !conteudo) {
+        alert('Preencha título e conteúdo!');
+        return;
+    }
+    
+    const novoId = documentos.length > 0 ? Math.max(...documentos.map(d => d.id)) + 1 : 1;
+    const novoDoc = {id:novoId, titulo, conteudo};
+    documentos.push(novoDoc);
+    
+    const salvo = await escreverPlanilha(documentos, 'documentos');
+    salvarLocal();
+    atualizarDocumentos();
+    
+    document.getElementById('novoDocTitulo').value = '';
+    document.getElementById('novoDocConteudo').value = '';
+    
+    if(salvo) {
+        alert('✅ Documento sincronizado com a nuvem!');
+    } else {
+        alert('⚠️ Documento salvo localmente. Sincronização falhou.');
+    }
 }
 
 function atualizarEventos() {
     const container = document.getElementById('lista-eventos');
-    if(!container) return;
-    
     if(eventos.length === 0) {
-        container.innerHTML = '<p style="color:#666">📭 Nenhum evento cadastrado</p>';
+        container.innerHTML = '<p style="color:#666">Nenhum evento cadastrado</p>';
         return;
     }
     
     container.innerHTML = eventos.map(evento => `
         <div class="item-lista">
-            <strong>🎯 ${evento.nome}</strong><br>
+            <strong>${evento.nome}</strong><br>
             📅 ${formatarData(evento.data)} | 📍 ${evento.local || 'Local não informado'}<br>
             <small>${evento.desc || ''}</small>
             ${adminLogado ? `
@@ -228,16 +339,14 @@ function atualizarEventos() {
 
 function atualizarCursos() {
     const container = document.getElementById('lista-cursos');
-    if(!container) return;
-    
     if(cursos.length === 0) {
-        container.innerHTML = '<p style="color:#666">📭 Nenhum curso cadastrado</p>';
+        container.innerHTML = '<p style="color:#666">Nenhum curso cadastrado</p>';
         return;
     }
     
     container.innerHTML = cursos.map(curso => `
         <div class="item-lista">
-            <strong>📚 ${curso.nome}</strong><br>
+            <strong>${curso.nome}</strong><br>
             ⏱️ ${curso.carga || 'Carga não informada'} | ${curso.desc || ''}
             ${adminLogado ? `
                 <div style="margin-top:8px">
@@ -251,10 +360,8 @@ function atualizarCursos() {
 
 function atualizarDocumentos() {
     const container = document.getElementById('lista-documentos');
-    if(!container) return;
-    
     if(documentos.length === 0) {
-        container.innerHTML = '<p style="color:#666">📭 Nenhum documento disponível</p>';
+        container.innerHTML = '<p style="color:#666">Nenhum documento disponível</p>';
         return;
     }
     
@@ -267,97 +374,6 @@ function atualizarDocumentos() {
     `).join('');
 }
 
-function verDocumento(id) {
-    const doc = documentos.find(d => d.id === id);
-    if(doc) {
-        alert(`📄 ${doc.titulo}\n\n${doc.conteudo}`);
-    }
-}
-
-function cadastrarEvento() {
-    const nome = document.getElementById('novoEventoNome').value;
-    const data = document.getElementById('novoEventoData').value;
-    const local = document.getElementById('novoEventoLocal').value;
-    const desc = document.getElementById('novoEventoDesc').value;
-    
-    if(!nome || !data) {
-        alert('⚠️ Preencha pelo menos nome e data!');
-        return;
-    }
-    
-    const novoId = eventos.length > 0 ? Math.max(...eventos.map(e => e.id)) + 1 : 1;
-    eventos.push({
-        id:novoId, 
-        nome: nome, 
-        data: data, 
-        local: local || 'Não informado', 
-        desc: desc || ''
-    });
-    
-    salvarTudo();
-    atualizarEventos();
-    
-    document.getElementById('novoEventoNome').value = '';
-    document.getElementById('novoEventoData').value = '';
-    document.getElementById('novoEventoLocal').value = '';
-    document.getElementById('novoEventoDesc').value = '';
-    
-    alert('✅ Evento cadastrado com sucesso!');
-}
-
-function cadastrarCurso() {
-    const nome = document.getElementById('novoCursoNome').value;
-    const carga = document.getElementById('novoCursoCarga').value;
-    const desc = document.getElementById('novoCursoDesc').value;
-    
-    if(!nome) {
-        alert('⚠️ Preencha o nome do curso!');
-        return;
-    }
-    
-    const novoId = cursos.length > 0 ? Math.max(...cursos.map(c => c.id)) + 1 : 1;
-    cursos.push({
-        id:novoId, 
-        nome: nome, 
-        carga: carga || 'Não informada', 
-        desc: desc || ''
-    });
-    
-    salvarTudo();
-    atualizarCursos();
-    
-    document.getElementById('novoCursoNome').value = '';
-    document.getElementById('novoCursoCarga').value = '';
-    document.getElementById('novoCursoDesc').value = '';
-    
-    alert('✅ Curso cadastrado com sucesso!');
-}
-
-function adicionarDocumento() {
-    const titulo = document.getElementById('novoDocTitulo').value;
-    const conteudo = document.getElementById('novoDocConteudo').value;
-    
-    if(!titulo || !conteudo) {
-        alert('⚠️ Preencha título e conteúdo!');
-        return;
-    }
-    
-    const novoId = documentos.length > 0 ? Math.max(...documentos.map(d => d.id)) + 1 : 1;
-    documentos.push({
-        id:novoId, 
-        titulo: titulo, 
-        conteudo: conteudo
-    });
-    
-    salvarTudo();
-    atualizarDocumentos();
-    
-    document.getElementById('novoDocTitulo').value = '';
-    document.getElementById('novoDocConteudo').value = '';
-    
-    alert('✅ Documento adicionado!');
-}
-
 function editarItem(tipo, id) {
     editandoTipo = tipo;
     editandoId = id;
@@ -367,117 +383,83 @@ function editarItem(tipo, id) {
     else if(tipo === 'curso') item = cursos.find(c => c.id === id);
     
     if(item) {
-        document.getElementById('modalTitulo').innerText = `Editar ${tipo === 'evento' ? 'Evento' : 'Curso'}`;
+        document.getElementById('modalTitulo').innerText = `Editar ${tipo}`;
         document.getElementById('editarNome').value = item.nome;
         
         if(tipo === 'evento') {
             document.getElementById('editarInfo').value = `${item.data || ''}|${item.local || ''}|${item.desc || ''}`;
-            document.getElementById('editarInfo').placeholder = "Data|Local|Descrição";
         } else {
             document.getElementById('editarInfo').value = `${item.carga || ''}|${item.desc || ''}`;
-            document.getElementById('editarInfo').placeholder = "Carga horária|Descrição";
         }
         
         document.getElementById('modal').style.display = 'block';
     }
 }
 
-function salvarEdicao() {
+async function salvarEdicao() {
     const novoNome = document.getElementById('editarNome').value;
     const info = document.getElementById('editarInfo').value;
     
     if(editandoTipo === 'evento') {
-        const partes = info.split('|');
+        const [data, local, desc] = info.split('|');
         const evento = eventos.find(e => e.id === editandoId);
         if(evento) {
             evento.nome = novoNome;
-            if(partes[0]) evento.data = partes[0];
-            if(partes[1]) evento.local = partes[1];
-            if(partes[2]) evento.desc = partes[2];
+            if(data) evento.data = data;
+            if(local) evento.local = local;
+            if(desc) evento.desc = desc;
         }
+        await escreverPlanilha(eventos, 'eventos');
     } else if(editandoTipo === 'curso') {
-        const partes = info.split('|');
+        const [carga, desc] = info.split('|');
         const curso = cursos.find(c => c.id === editandoId);
         if(curso) {
             curso.nome = novoNome;
-            if(partes[0]) curso.carga = partes[0];
-            if(partes[1]) curso.desc = partes[1];
+            if(carga) curso.carga = carga;
+            if(desc) curso.desc = desc;
         }
+        await escreverPlanilha(cursos, 'cursos');
     }
     
-    salvarTudo();
+    salvarLocal();
     atualizarEventos();
     atualizarCursos();
     fecharModal();
-    alert('✅ Salvo com sucesso!');
+    alert('✅ Salvo!');
 }
 
-function excluirItem(tipo, id) {
-    if(confirm('⚠️ Tem certeza que quer excluir este item?')) {
+async function excluirItem(tipo, id) {
+    if(confirm('Tem certeza?')) {
         if(tipo === 'evento') {
             eventos = eventos.filter(e => e.id !== id);
+            await escreverPlanilha(eventos, 'eventos');
         } else if(tipo === 'curso') {
             cursos = cursos.filter(c => c.id !== id);
+            await escreverPlanilha(cursos, 'cursos');
         }
         
-        salvarTudo();
+        salvarLocal();
         atualizarEventos();
         atualizarCursos();
-        alert('✅ Excluído com sucesso!');
+        alert('✅ Excluído!');
     }
 }
 
 function exportarDados() {
-    const dados = {
-        eventos: eventos,
-        cursos: cursos,
-        documentos: documentos,
-        dataExportacao: new Date().toLocaleString('pt-BR'),
-        versao: "1.0"
-    };
-    
+    const dados = {eventos, cursos, documentos, dataExportacao: new Date().toISOString()};
     const dadosStr = JSON.stringify(dados, null, 2);
     const blob = new Blob([dadosStr], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `sinergia-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    alert('✅ Backup exportado! Envie este arquivo para os membros via WhatsApp.');
-}
-
-function importarDados() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        if(!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const dados = JSON.parse(event.target.result);
-                if(dados.eventos) eventos = dados.eventos;
-                if(dados.cursos) cursos = dados.cursos;
-                if(dados.documentos) documentos = dados.documentos;
-                salvarTudo();
-                atualizarTudo();
-                alert('✅ Dados importados com sucesso! Agora você vê os mesmos eventos que o admin.');
-            } catch(erro) {
-                alert('❌ Arquivo inválido! Certifique-se de que é um arquivo .json de backup.');
-            }
-        };
-        reader.readAsText(file);
-    };
-    input.click();
+    alert('Backup exportado!');
 }
 
 function formatarData(dataStr) {
-    if(!dataStr || dataStr === 'null' || dataStr === 'undefined') return 'Data não definida';
+    if(!dataStr) return 'Data não definida';
     try {
         const data = new Date(dataStr);
         if(isNaN(data.getTime())) return dataStr;
@@ -495,7 +477,7 @@ function verificarSenhaMembro() {
         document.getElementById('conteudo-membro').style.display = 'block';
         atualizarDocumentos();
     } else {
-        alert('❌ Senha incorreta!');
+        alert('Senha incorreta!');
     }
 }
 
@@ -503,7 +485,6 @@ function logoutMembro() {
     membroLogado = false;
     document.querySelector('#area-membro .senha-area').style.display = 'block';
     document.getElementById('conteudo-membro').style.display = 'none';
-    document.getElementById('senhaMembro').value = '';
 }
 
 function verificarSenhaAdmin() {
@@ -515,7 +496,7 @@ function verificarSenhaAdmin() {
         atualizarEventos();
         atualizarCursos();
     } else {
-        alert('❌ Senha incorreta!');
+        alert('Senha incorreta!');
     }
 }
 
@@ -523,14 +504,19 @@ function mostrarTab(tab) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('ativo'));
     document.querySelectorAll('.conteudo-tab').forEach(c => c.classList.remove('ativo'));
     
-    const tabMap = {
-        'eventos': () => { document.querySelectorAll('.tab')[0].classList.add('ativo'); document.getElementById('tab-eventos').classList.add('ativo'); },
-        'cursos': () => { document.querySelectorAll('.tab')[1].classList.add('ativo'); document.getElementById('tab-cursos').classList.add('ativo'); },
-        'membro': () => { document.querySelectorAll('.tab')[2].classList.add('ativo'); document.getElementById('tab-membro').classList.add('ativo'); },
-        'admin': () => { document.querySelectorAll('.tab')[3].classList.add('ativo'); document.getElementById('tab-admin').classList.add('ativo'); }
-    };
-    
-    if(tabMap[tab]) tabMap[tab]();
+    if(tab === 'eventos') {
+        document.querySelectorAll('.tab')[0].classList.add('ativo');
+        document.getElementById('tab-eventos').classList.add('ativo');
+    } else if(tab === 'cursos') {
+        document.querySelectorAll('.tab')[1].classList.add('ativo');
+        document.getElementById('tab-cursos').classList.add('ativo');
+    } else if(tab === 'membro') {
+        document.querySelectorAll('.tab')[2].classList.add('ativo');
+        document.getElementById('tab-membro').classList.add('ativo');
+    } else if(tab === 'admin') {
+        document.querySelectorAll('.tab')[3].classList.add('ativo');
+        document.getElementById('tab-admin').classList.add('ativo');
+    }
 }
 
 function atualizarTudo() {
@@ -541,23 +527,14 @@ function atualizarTudo() {
 
 function fecharModal() {
     document.getElementById('modal').style.display = 'none';
-    editandoTipo = null;
-    editandoId = null;
 }
 
-// Fechar modal ao clicar fora
-window.onclick = function(event) {
-    const modal = document.getElementById('modal');
-    if (event.target == modal) {
-        fecharModal();
-    }
+function verDocumento(id) {
+    const doc = documentos.find(d => d.id === id);
+    alert(`${doc.titulo}\n\n${doc.conteudo}`);
 }
 
-// Inicializar
 carregarDados();
-console.log('🚀 Sistema Sinergia carregado com sucesso!');
-console.log('📌 Senha admin: admin123');
-console.log('📌 Senha membro: sinergia2024');
 </script>
 </body>
 </html>
