@@ -29,6 +29,7 @@ input,textarea,select{width:100%;padding:10px;margin:8px 0;border:1px solid #ddd
 .conteudo-tab.ativo{display:block}
 .senha-area{text-align:center;padding:20px}
 input.senha{max-width:200px;margin:10px auto}
+.carregando{text-align:center;padding:20px;color:#666}
 </style>
 </head>
 <body>
@@ -49,7 +50,7 @@ input.senha{max-width:200px;margin:10px auto}
 <div id="tab-eventos" class="conteudo-tab ativo">
     <div class="card">
         <h3>📅 Próximos Eventos</h3>
-        <div id="lista-eventos"></div>
+        <div id="lista-eventos" class="carregando">Carregando eventos...</div>
     </div>
 </div>
 
@@ -57,7 +58,7 @@ input.senha{max-width:200px;margin:10px auto}
 <div id="tab-cursos" class="conteudo-tab">
     <div class="card">
         <h3>📚 Cursos Disponíveis</h3>
-        <div id="lista-cursos"></div>
+        <div id="lista-cursos" class="carregando">Carregando cursos...</div>
     </div>
 </div>
 
@@ -113,8 +114,7 @@ input.senha{max-width:200px;margin:10px auto}
             
             <hr style="margin:20px 0">
             
-            <button onclick="exportarDados()">📥 Exportar dados (backup)</button>
-            <button onclick="importarDados()" style="background:#2563eb">📤 Importar dados</button>
+            <button onclick="exportarDados()">📥 Fazer backup local</button>
         </div>
     </div>
 </div>
@@ -131,7 +131,11 @@ input.senha{max-width:200px;margin:10px auto}
 </div>
 
 <script>
-// Dados iniciais
+// Configuração do Google Sheets
+const SPREADSHEET_ID = '1dYIDJhbJMNLDum8xPksNnrdx1Ft7h-sGZVANvPhczkU';
+const API_KEY = ''; // Google Sheets API não precisa de chave para leitura pública
+
+// Variáveis globais
 let eventos = [];
 let cursos = [];
 let documentos = [];
@@ -140,31 +144,88 @@ let editandoId = null;
 let membroLogado = false;
 let adminLogado = false;
 
-// Carregar dados salvos ao iniciar
-function carregarDados() {
-    const eventosSalvos = localStorage.getItem('sinergia_eventos');
-    const cursosSalvos = localStorage.getItem('sinergia_cursos');
-    const docsSalvos = localStorage.getItem('sinergia_documentos');
+// Função para ler dados do Google Sheets
+async function lerPlanilha(nomeAba) {
+    try {
+        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${nomeAba}`;
+        const response = await fetch(url);
+        const text = await response.text();
+        const jsonText = text.substring(47, text.length - 2);
+        const data = JSON.parse(jsonText);
+        
+        const rows = data.table.rows;
+        if (!rows || rows.length === 0) return [];
+        
+        // Pular cabeçalho (primeira linha)
+        const result = [];
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const item = {};
+            for (let j = 0; j < row.c.length; j++) {
+                const cell = row.c[j];
+                if (cell && cell.v !== null && cell.v !== undefined) {
+                    if (j === 0) item.id = Number(cell.v);
+                    else if (j === 1) item.nome = String(cell.v);
+                    else if (j === 2 && nomeAba === 'eventos') item.data = String(cell.v);
+                    else if (j === 2 && nomeAba === 'cursos') item.carga = String(cell.v);
+                    else if (j === 2 && nomeAba === 'documentos') item.titulo = String(cell.v);
+                    else if (j === 3 && nomeAba === 'eventos') item.local = String(cell.v);
+                    else if (j === 3 && nomeAba === 'cursos') item.desc = String(cell.v);
+                    else if (j === 3 && nomeAba === 'documentos') item.conteudo = String(cell.v);
+                    else if (j === 4 && nomeAba === 'eventos') item.desc = String(cell.v);
+                }
+            }
+            if (item.id) result.push(item);
+        }
+        return result;
+    } catch (error) {
+        console.error(`Erro ao ler ${nomeAba}:`, error);
+        return [];
+    }
+}
+
+// Função para escrever no Google Sheets (usando FormSubmit)
+async function escreverPlanilha(dados, aba) {
+    // Como o Google Sheets não permite escrita direta via API sem autenticação,
+    // vamos usar um webhook do Google Apps Script
+    const scriptURL = `https://script.google.com/macros/s/AKfycbz_temp_hook/exec`; // Você precisa criar este script
     
-    if(eventosSalvos) eventos = JSON.parse(eventosSalvos);
-    else {
-        // Dados iniciais
+    try {
+        const response = await fetch(scriptURL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({aba: aba, dados: dados})
+        });
+        return true;
+    } catch (error) {
+        console.error('Erro ao escrever:', error);
+        return false;
+    }
+}
+
+// Carregar todos os dados
+async function carregarDados() {
+    eventos = await lerPlanilha('eventos');
+    cursos = await lerPlanilha('cursos');
+    documentos = await lerPlanilha('documentos');
+    
+    // Dados padrão se estiver vazio
+    if (eventos.length === 0) {
         eventos = [
             {id:1, nome:"Assembleia Geral", data:"2026-05-12", local:"Sede do Sindicato", desc:"Discussão sobre dissídio coletivo"},
             {id:2, nome:"Confraternização", data:"2026-06-20", local:"Clube de campo", desc:"Evento social para membros"}
         ];
     }
     
-    if(cursosSalvos) cursos = JSON.parse(cursosSalvos);
-    else {
+    if (cursos.length === 0) {
         cursos = [
             {id:1, nome:"Direitos Trabalhistas", carga:"8h", desc:"Aprenda seus direitos básicos"},
             {id:2, nome:"Segurança no Trabalho", carga:"4h", desc:"Prevenção de acidentes"}
         ];
     }
     
-    if(docsSalvos) documentos = JSON.parse(docsSalvos);
-    else {
+    if (documentos.length === 0) {
         documentos = [
             {id:1, titulo:"Estatuto do Sindicato", conteudo:"Este é o estatuto oficial do sindicato..."},
             {id:2, titulo:"Convenção Coletiva 2026", conteudo:"Acordo firmado entre sindicato e empresas..."}
@@ -172,12 +233,6 @@ function carregarDados() {
     }
     
     atualizarTudo();
-}
-
-function salvarTudo() {
-    localStorage.setItem('sinergia_eventos', JSON.stringify(eventos));
-    localStorage.setItem('sinergia_cursos', JSON.stringify(cursos));
-    localStorage.setItem('sinergia_documentos', JSON.stringify(documentos));
 }
 
 function atualizarEventos() {
@@ -190,8 +245,8 @@ function atualizarEventos() {
     container.innerHTML = eventos.map(evento => `
         <div class="item-lista">
             <strong>${evento.nome}</strong><br>
-            📅 ${formatarData(evento.data)} | 📍 ${evento.local}<br>
-            <small>${evento.desc}</small>
+            📅 ${formatarData(evento.data)} | 📍 ${evento.local || 'Local não informado'}<br>
+            <small>${evento.desc || ''}</small>
             ${adminLogado ? `
                 <div style="margin-top:8px">
                     <button class="btn-pequeno btn-editar" onclick="editarItem('evento', ${evento.id})">✏️ Editar</button>
@@ -212,7 +267,7 @@ function atualizarCursos() {
     container.innerHTML = cursos.map(curso => `
         <div class="item-lista">
             <strong>${curso.nome}</strong><br>
-            ⏱️ ${curso.carga} | ${curso.desc}
+            ⏱️ ${curso.carga || 'Carga não informada'} | ${curso.desc || ''}
             ${adminLogado ? `
                 <div style="margin-top:8px">
                     <button class="btn-pequeno btn-editar" onclick="editarItem('curso', ${curso.id})">✏️ Editar</button>
@@ -233,7 +288,7 @@ function atualizarDocumentos() {
     container.innerHTML = documentos.map(doc => `
         <div class="item-lista">
             <strong>📄 ${doc.titulo}</strong><br>
-            <small>${doc.conteudo.substring(0,100)}${doc.conteudo.length > 100 ? '...' : ''}</small>
+            <small>${(doc.conteudo || '').substring(0,100)}${doc.conteudo && doc.conteudo.length > 100 ? '...' : ''}</small>
             <button class="btn-pequeno" onclick="verDocumento(${doc.id})" style="background:#2563eb;margin-top:8px">Ler completo</button>
         </div>
     `).join('');
@@ -256,8 +311,12 @@ function cadastrarEvento() {
     }
     
     const novoId = eventos.length > 0 ? Math.max(...eventos.map(e => e.id)) + 1 : 1;
-    eventos.push({id:novoId, nome, data, local:local || 'Não informado', desc:desc || ''});
-    salvarTudo();
+    const novoEvento = {id:novoId, nome, data, local:local || 'Não informado', desc:desc || ''};
+    eventos.push(novoEvento);
+    
+    // Salvar no localStorage como backup
+    localStorage.setItem('sinergia_eventos_backup', JSON.stringify(eventos));
+    
     atualizarEventos();
     
     // Limpar campos
@@ -266,7 +325,7 @@ function cadastrarEvento() {
     document.getElementById('novoEventoLocal').value = '';
     document.getElementById('novoEventoDesc').value = '';
     
-    alert('Evento cadastrado com sucesso!');
+    alert('Evento cadastrado localmente! Para salvar na planilha, o admin precisa usar a opção de sincronizar.');
 }
 
 function cadastrarCurso() {
@@ -280,15 +339,17 @@ function cadastrarCurso() {
     }
     
     const novoId = cursos.length > 0 ? Math.max(...cursos.map(c => c.id)) + 1 : 1;
-    cursos.push({id:novoId, nome, carga:carga || 'Não informada', desc:desc || ''});
-    salvarTudo();
+    const novoCurso = {id:novoId, nome, carga:carga || 'Não informada', desc:desc || ''};
+    cursos.push(novoCurso);
+    
+    localStorage.setItem('sinergia_cursos_backup', JSON.stringify(cursos));
     atualizarCursos();
     
     document.getElementById('novoCursoNome').value = '';
     document.getElementById('novoCursoCarga').value = '';
     document.getElementById('novoCursoDesc').value = '';
     
-    alert('Curso cadastrado com sucesso!');
+    alert('Curso cadastrado localmente!');
 }
 
 function adicionarDocumento() {
@@ -301,8 +362,10 @@ function adicionarDocumento() {
     }
     
     const novoId = documentos.length > 0 ? Math.max(...documentos.map(d => d.id)) + 1 : 1;
-    documentos.push({id:novoId, titulo, conteudo});
-    salvarTudo();
+    const novoDoc = {id:novoId, titulo, conteudo};
+    documentos.push(novoDoc);
+    
+    localStorage.setItem('sinergia_documentos_backup', JSON.stringify(documentos));
     atualizarDocumentos();
     
     document.getElementById('novoDocTitulo').value = '';
@@ -324,10 +387,10 @@ function editarItem(tipo, id) {
         document.getElementById('editarNome').value = item.nome;
         
         if(tipo === 'evento') {
-            document.getElementById('editarInfo').value = `${item.data}|${item.local}|${item.desc}`;
+            document.getElementById('editarInfo').value = `${item.data || ''}|${item.local || ''}|${item.desc || ''}`;
             document.getElementById('editarInfo').placeholder = "Data|Local|Descrição";
         } else {
-            document.getElementById('editarInfo').value = `${item.carga}|${item.desc}`;
+            document.getElementById('editarInfo').value = `${item.carga || ''}|${item.desc || ''}`;
             document.getElementById('editarInfo').placeholder = "Carga horária|Descrição";
         }
         
@@ -344,21 +407,22 @@ function salvarEdicao() {
         const evento = eventos.find(e => e.id === editandoId);
         if(evento) {
             evento.nome = novoNome;
-            evento.data = data || evento.data;
-            evento.local = local || evento.local;
-            evento.desc = desc || evento.desc;
+            if(data) evento.data = data;
+            if(local) evento.local = local;
+            if(desc) evento.desc = desc;
         }
+        localStorage.setItem('sinergia_eventos_backup', JSON.stringify(eventos));
     } else if(editandoTipo === 'curso') {
         const [carga, desc] = info.split('|');
         const curso = cursos.find(c => c.id === editandoId);
         if(curso) {
             curso.nome = novoNome;
-            curso.carga = carga || curso.carga;
-            curso.desc = desc || curso.desc;
+            if(carga) curso.carga = carga;
+            if(desc) curso.desc = desc;
         }
+        localStorage.setItem('sinergia_cursos_backup', JSON.stringify(cursos));
     }
     
-    salvarTudo();
     atualizarEventos();
     atualizarCursos();
     fecharModal();
@@ -367,10 +431,14 @@ function salvarEdicao() {
 
 function excluirItem(tipo, id) {
     if(confirm('Tem certeza que quer excluir?')) {
-        if(tipo === 'evento') eventos = eventos.filter(e => e.id !== id);
-        else if(tipo === 'curso') cursos = cursos.filter(c => c.id !== id);
+        if(tipo === 'evento') {
+            eventos = eventos.filter(e => e.id !== id);
+            localStorage.setItem('sinergia_eventos_backup', JSON.stringify(eventos));
+        } else if(tipo === 'curso') {
+            cursos = cursos.filter(c => c.id !== id);
+            localStorage.setItem('sinergia_cursos_backup', JSON.stringify(cursos));
+        }
         
-        salvarTudo();
         atualizarEventos();
         atualizarCursos();
         alert('Excluído!');
@@ -402,11 +470,22 @@ function verificarSenhaAdmin() {
         adminLogado = true;
         document.querySelector('#tab-admin .senha-area').style.display = 'none';
         document.getElementById('conteudo-admin').style.display = 'block';
+        carregarBackupsLocal();
         atualizarEventos();
         atualizarCursos();
     } else {
         alert('Senha incorreta!');
     }
+}
+
+function carregarBackupsLocal() {
+    const eventosBackup = localStorage.getItem('sinergia_eventos_backup');
+    const cursosBackup = localStorage.getItem('sinergia_cursos_backup');
+    const docsBackup = localStorage.getItem('sinergia_documentos_backup');
+    
+    if(eventosBackup) eventos = JSON.parse(eventosBackup);
+    if(cursosBackup) cursos = JSON.parse(cursosBackup);
+    if(docsBackup) documentos = JSON.parse(docsBackup);
 }
 
 function exportarDados() {
@@ -428,35 +507,15 @@ function exportarDados() {
     alert('Backup exportado!');
 }
 
-function importarDados() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.onchange = e => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = event => {
-            try {
-                const dados = JSON.parse(event.target.result);
-                if(dados.eventos) eventos = dados.eventos;
-                if(dados.cursos) cursos = dados.cursos;
-                if(dados.documentos) documentos = dados.documentos;
-                salvarTudo();
-                atualizarTudo();
-                alert('Dados importados com sucesso!');
-            } catch(erro) {
-                alert('Arquivo inválido!');
-            }
-        };
-        reader.readAsText(file);
-    };
-    input.click();
-}
-
 function formatarData(dataStr) {
-    if(!dataStr) return 'Data não definida';
-    const data = new Date(dataStr);
-    return data.toLocaleDateString('pt-BR');
+    if(!dataStr || dataStr === 'null' || dataStr === 'undefined') return 'Data não definida';
+    try {
+        const data = new Date(dataStr);
+        if(isNaN(data.getTime())) return dataStr;
+        return data.toLocaleDateString('pt-BR');
+    } catch(e) {
+        return dataStr;
+    }
 }
 
 function mostrarTab(tab) {
