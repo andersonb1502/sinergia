@@ -126,49 +126,10 @@ input.senha{max-width:200px;margin:10px auto}
 </div>
 
 <script>
-// Configuração do Google Sheets
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWz1dJFYg7qj8Sw3KWyrm764P_-dzBZrUeVaqWGLSmOR2pZNmSlLI6uvPtIJ5XZIk/exec';
+// ... TODO O SEU CÓDIGO EXISTENTE AQUI ...
+// (desde o início do script até a função carregarDados)
 
-let eventos = [];
-let cursos = [];
-let documentos = [];
-let editandoTipo = null;
-let editandoId = null;
-let membroLogado = false;
-let adminLogado = false;
-
-// Função para escrever no Google Sheets
-async function escreverPlanilha(dados, aba) {
-    try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({aba: aba, dados: dados})
-        });
-        console.log(`✅ Dados enviados para ${aba}`);
-        return true;
-    } catch (error) {
-        console.error('Erro ao escrever:', error);
-        return false;
-    }
-}
-
-// Função para ler dados do Google Sheets
-async function lerPlanilha(aba) {
-    try {
-        const url = `${SCRIPT_URL}?aba=${aba}`;
-        const response = await fetch(url);
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error(`Erro ao ler ${aba}:`, error);
-        return [];
-    }
-}
-
-// Carregar todos os dados
+// Função para carregar todos os dados (já existe no seu código)
 async function carregarDados() {
     try {
         const eventosTemp = await lerPlanilha('eventos');
@@ -209,331 +170,42 @@ async function carregarDados() {
     }
 }
 
-function carregarDadosLocal() {
-    const eventosSalvos = localStorage.getItem('sinergia_eventos');
-    const cursosSalvos = localStorage.getItem('sinergia_cursos');
-    const docsSalvos = localStorage.getItem('sinergia_documentos');
-    
-    if(eventosSalvos) eventos = JSON.parse(eventosSalvos);
-    if(cursosSalvos) cursos = JSON.parse(cursosSalvos);
-    if(docsSalvos) documentos = JSON.parse(docsSalvos);
-    
-    atualizarTudo();
-}
+// ... TODO O RESTO DO SEU CÓDIGO ...
+// (todas as outras funções: cadastrarEvento, editarItem, etc.)
 
-function salvarLocal() {
-    localStorage.setItem('sinergia_eventos', JSON.stringify(eventos));
-    localStorage.setItem('sinergia_cursos', JSON.stringify(cursos));
-    localStorage.setItem('sinergia_documentos', JSON.stringify(documentos));
-}
+// ✅ INSIRA O CÓDIGO DE ATUALIZAÇÃO EM TEMPO REAL AQUI
+// Logo antes da última linha que chama carregarDados()
 
-async function cadastrarEvento() {
-    const nome = document.getElementById('novoEventoNome').value;
-    const data = document.getElementById('novoEventoData').value;
-    const local = document.getElementById('novoEventoLocal').value;
-    const desc = document.getElementById('novoEventoDesc').value;
-    
-    if(!nome || !data) {
-        alert('Preencha pelo menos nome e data!');
-        return;
+// ============================================
+// ATUALIZAÇÃO AUTOMÁTICA EM TEMPO REAL
+// ============================================
+
+// 1. Atualizar dados a cada 30 segundos (apenas se a aba estiver visível)
+setInterval(() => {
+    if (document.visibilityState === 'visible') {
+        console.log('🔄 Atualizando dados automaticamente...');
+        carregarDados();
     }
-    
-    const novoId = eventos.length > 0 ? Math.max(...eventos.map(e => e.id)) + 1 : 1;
-    const novoEvento = {id:novoId, nome, data, local:local || 'Não informado', desc:desc || ''};
-    eventos.push(novoEvento);
-    
-    const salvo = await escreverPlanilha(eventos, 'eventos');
-    salvarLocal();
-    atualizarEventos();
-    
-    document.getElementById('novoEventoNome').value = '';
-    document.getElementById('novoEventoData').value = '';
-    document.getElementById('novoEventoLocal').value = '';
-    document.getElementById('novoEventoDesc').value = '';
-    
-    if(salvo) {
-        alert('✅ Evento sincronizado com a nuvem!');
-    } else {
-        alert('⚠️ Evento salvo localmente. Sincronização falhou.');
+}, 30000); // 30 segundos
+
+// 2. Atualizar quando o usuário voltar para a aba do app
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        console.log('👁️ Aba ficou visível, atualizando dados...');
+        carregarDados();
     }
-}
+});
 
-async function cadastrarCurso() {
-    const nome = document.getElementById('novoCursoNome').value;
-    const carga = document.getElementById('novoCursoCarga').value;
-    const desc = document.getElementById('novoCursoDesc').value;
-    
-    if(!nome) {
-        alert('Preencha o nome do curso!');
-        return;
-    }
-    
-    const novoId = cursos.length > 0 ? Math.max(...cursos.map(c => c.id)) + 1 : 1;
-    const novoCurso = {id:novoId, nome, carga:carga || 'Não informada', desc:desc || ''};
-    cursos.push(novoCurso);
-    
-    const salvo = await escreverPlanilha(cursos, 'cursos');
-    salvarLocal();
-    atualizarCursos();
-    
-    document.getElementById('novoCursoNome').value = '';
-    document.getElementById('novoCursoCarga').value = '';
-    document.getElementById('novoCursoDesc').value = '';
-    
-    if(salvo) {
-        alert('✅ Curso sincronizado com a nuvem!');
-    } else {
-        alert('⚠️ Curso salvo localmente. Sincronização falhou.');
-    }
-}
+// 3. Opcional: Atualizar quando o usuário estiver online novamente (se cair a internet)
+window.addEventListener('online', () => {
+    console.log('🌐 Conexão restaurada, atualizando dados...');
+    carregarDados();
+});
 
-async function adicionarDocumento() {
-    const titulo = document.getElementById('novoDocTitulo').value;
-    const conteudo = document.getElementById('novoDocConteudo').value;
-    
-    if(!titulo || !conteudo) {
-        alert('Preencha título e conteúdo!');
-        return;
-    }
-    
-    const novoId = documentos.length > 0 ? Math.max(...documentos.map(d => d.id)) + 1 : 1;
-    const novoDoc = {id:novoId, titulo, conteudo};
-    documentos.push(novoDoc);
-    
-    const salvo = await escreverPlanilha(documentos, 'documentos');
-    salvarLocal();
-    atualizarDocumentos();
-    
-    document.getElementById('novoDocTitulo').value = '';
-    document.getElementById('novoDocConteudo').value = '';
-    
-    if(salvo) {
-        alert('✅ Documento sincronizado com a nuvem!');
-    } else {
-        alert('⚠️ Documento salvo localmente. Sincronização falhou.');
-    }
-}
-
-function atualizarEventos() {
-    const container = document.getElementById('lista-eventos');
-    if(eventos.length === 0) {
-        container.innerHTML = '<p style="color:#666">Nenhum evento cadastrado</p>';
-        return;
-    }
-    
-    container.innerHTML = eventos.map(evento => `
-        <div class="item-lista">
-            <strong>${evento.nome}</strong><br>
-            📅 ${formatarData(evento.data)} | 📍 ${evento.local || 'Local não informado'}<br>
-            <small>${evento.desc || ''}</small>
-            ${adminLogado ? `
-                <div style="margin-top:8px">
-                    <button class="btn-pequeno btn-editar" onclick="editarItem('evento', ${evento.id})">✏️ Editar</button>
-                    <button class="btn-pequeno btn-excluir" onclick="excluirItem('evento', ${evento.id})">🗑️ Excluir</button>
-                </div>
-            ` : ''}
-        </div>
-    `).join('');
-}
-
-function atualizarCursos() {
-    const container = document.getElementById('lista-cursos');
-    if(cursos.length === 0) {
-        container.innerHTML = '<p style="color:#666">Nenhum curso cadastrado</p>';
-        return;
-    }
-    
-    container.innerHTML = cursos.map(curso => `
-        <div class="item-lista">
-            <strong>${curso.nome}</strong><br>
-            ⏱️ ${curso.carga || 'Carga não informada'} | ${curso.desc || ''}
-            ${adminLogado ? `
-                <div style="margin-top:8px">
-                    <button class="btn-pequeno btn-editar" onclick="editarItem('curso', ${curso.id})">✏️ Editar</button>
-                    <button class="btn-pequeno btn-excluir" onclick="excluirItem('curso', ${curso.id})">🗑️ Excluir</button>
-                </div>
-            ` : ''}
-        </div>
-    `).join('');
-}
-
-function atualizarDocumentos() {
-    const container = document.getElementById('lista-documentos');
-    if(documentos.length === 0) {
-        container.innerHTML = '<p style="color:#666">Nenhum documento disponível</p>';
-        return;
-    }
-    
-    container.innerHTML = documentos.map(doc => `
-        <div class="item-lista">
-            <strong>📄 ${doc.titulo}</strong><br>
-            <small>${(doc.conteudo || '').substring(0,100)}${doc.conteudo && doc.conteudo.length > 100 ? '...' : ''}</small>
-            <button class="btn-pequeno" onclick="verDocumento(${doc.id})" style="background:#2563eb;margin-top:8px">Ler completo</button>
-        </div>
-    `).join('');
-}
-
-function editarItem(tipo, id) {
-    editandoTipo = tipo;
-    editandoId = id;
-    
-    let item;
-    if(tipo === 'evento') item = eventos.find(e => e.id === id);
-    else if(tipo === 'curso') item = cursos.find(c => c.id === id);
-    
-    if(item) {
-        document.getElementById('modalTitulo').innerText = `Editar ${tipo}`;
-        document.getElementById('editarNome').value = item.nome;
-        
-        if(tipo === 'evento') {
-            document.getElementById('editarInfo').value = `${item.data || ''}|${item.local || ''}|${item.desc || ''}`;
-        } else {
-            document.getElementById('editarInfo').value = `${item.carga || ''}|${item.desc || ''}`;
-        }
-        
-        document.getElementById('modal').style.display = 'block';
-    }
-}
-
-async function salvarEdicao() {
-    const novoNome = document.getElementById('editarNome').value;
-    const info = document.getElementById('editarInfo').value;
-    
-    if(editandoTipo === 'evento') {
-        const [data, local, desc] = info.split('|');
-        const evento = eventos.find(e => e.id === editandoId);
-        if(evento) {
-            evento.nome = novoNome;
-            if(data) evento.data = data;
-            if(local) evento.local = local;
-            if(desc) evento.desc = desc;
-        }
-        await escreverPlanilha(eventos, 'eventos');
-    } else if(editandoTipo === 'curso') {
-        const [carga, desc] = info.split('|');
-        const curso = cursos.find(c => c.id === editandoId);
-        if(curso) {
-            curso.nome = novoNome;
-            if(carga) curso.carga = carga;
-            if(desc) curso.desc = desc;
-        }
-        await escreverPlanilha(cursos, 'cursos');
-    }
-    
-    salvarLocal();
-    atualizarEventos();
-    atualizarCursos();
-    fecharModal();
-    alert('✅ Salvo!');
-}
-
-async function excluirItem(tipo, id) {
-    if(confirm('Tem certeza?')) {
-        if(tipo === 'evento') {
-            eventos = eventos.filter(e => e.id !== id);
-            await escreverPlanilha(eventos, 'eventos');
-        } else if(tipo === 'curso') {
-            cursos = cursos.filter(c => c.id !== id);
-            await escreverPlanilha(cursos, 'cursos');
-        }
-        
-        salvarLocal();
-        atualizarEventos();
-        atualizarCursos();
-        alert('✅ Excluído!');
-    }
-}
-
-function exportarDados() {
-    const dados = {eventos, cursos, documentos, dataExportacao: new Date().toISOString()};
-    const dadosStr = JSON.stringify(dados, null, 2);
-    const blob = new Blob([dadosStr], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sinergia-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    alert('Backup exportado!');
-}
-
-function formatarData(dataStr) {
-    if(!dataStr) return 'Data não definida';
-    try {
-        const data = new Date(dataStr);
-        if(isNaN(data.getTime())) return dataStr;
-        return data.toLocaleDateString('pt-BR');
-    } catch(e) {
-        return dataStr;
-    }
-}
-
-function verificarSenhaMembro() {
-    const senha = document.getElementById('senhaMembro').value;
-    if(senha === 'sinergia2024') {
-        membroLogado = true;
-        document.querySelector('#area-membro .senha-area').style.display = 'none';
-        document.getElementById('conteudo-membro').style.display = 'block';
-        atualizarDocumentos();
-    } else {
-        alert('Senha incorreta!');
-    }
-}
-
-function logoutMembro() {
-    membroLogado = false;
-    document.querySelector('#area-membro .senha-area').style.display = 'block';
-    document.getElementById('conteudo-membro').style.display = 'none';
-}
-
-function verificarSenhaAdmin() {
-    const senha = document.getElementById('senhaAdmin').value;
-    if(senha === 'admin123') {
-        adminLogado = true;
-        document.querySelector('#tab-admin .senha-area').style.display = 'none';
-        document.getElementById('conteudo-admin').style.display = 'block';
-        atualizarEventos();
-        atualizarCursos();
-    } else {
-        alert('Senha incorreta!');
-    }
-}
-
-function mostrarTab(tab) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('ativo'));
-    document.querySelectorAll('.conteudo-tab').forEach(c => c.classList.remove('ativo'));
-    
-    if(tab === 'eventos') {
-        document.querySelectorAll('.tab')[0].classList.add('ativo');
-        document.getElementById('tab-eventos').classList.add('ativo');
-    } else if(tab === 'cursos') {
-        document.querySelectorAll('.tab')[1].classList.add('ativo');
-        document.getElementById('tab-cursos').classList.add('ativo');
-    } else if(tab === 'membro') {
-        document.querySelectorAll('.tab')[2].classList.add('ativo');
-        document.getElementById('tab-membro').classList.add('ativo');
-    } else if(tab === 'admin') {
-        document.querySelectorAll('.tab')[3].classList.add('ativo');
-        document.getElementById('tab-admin').classList.add('ativo');
-    }
-}
-
-function atualizarTudo() {
-    atualizarEventos();
-    atualizarCursos();
-    atualizarDocumentos();
-}
-
-function fecharModal() {
-    document.getElementById('modal').style.display = 'none';
-}
-
-function verDocumento(id) {
-    const doc = documentos.find(d => d.id === id);
-    alert(`${doc.titulo}\n\n${doc.conteudo}`);
-}
-
-carregarDados();
+// ============================================
+// INICIALIZAÇÃO DO APP
+// ============================================
+carregarDados(); // Esta linha já existe no seu código
 </script>
 </body>
 </html>
